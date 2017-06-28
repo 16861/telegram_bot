@@ -250,7 +250,7 @@ class TelegramBot():
                 self.SendMessage(prnt)
             elif action_type == self.TYPE_SHOW_TASKS:
                 #show tasks, all or by specified limit parameter
-                if len(data["tasks"]) == 0:
+                if not data["tasks"]:
                     prnt = "There are no tasks!"
                 else:
                     prnt = "There are next tasks:\n"
