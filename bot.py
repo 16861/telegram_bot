@@ -213,12 +213,14 @@ class TelegramBot():
         get new updates, update updete_id in config, insert messages into db
         '''
         #get messages from Telegram API
+        not_exit_flag = True
         url = self._getUrl("get updates")
         data = self._sendCommand("GET", url)
         if data.status_code != 200:
             print(data.status_code, data.text)
             return
         js_data = json.loads(data.text)
+        #print(js_data)
         if len(js_data["result"]) == 0:
             #no new messages
             return True
@@ -251,17 +253,18 @@ class TelegramBot():
                 self.SendMessage(data['infos'])
             elif action_type == self.TYPE_EXIT:
                 # exit from bot
-                return False
+                not_exit_flag = False
 
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
+            print(True)
             if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
                 self.config['last_updates'] = \
                  max([mes["update_id"] for mes in js_data["result"]])+1
             self.config['last_updates'] = \
               max([mes["update_id"] for mes in js_data["result"]])+1
             fd.write(str(self.config).replace("'", "\""))
-        return True
+        return not_exit_flag
 
     def SendMessage(self, message):
         '''
