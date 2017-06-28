@@ -250,9 +250,12 @@ class TelegramBot():
                 self.SendMessage(prnt)
             elif action_type == self.TYPE_SHOW_TASKS:
                 #show tasks, all or by specified limit parameter
-                prnt = "There are next tasks:\n"
-                for task in data['tasks']:
-                    prnt += task[1] + ", id: " + str(task[0]) + ", expire: " + str(task[2]) + "\n"
+                if len(data["tasks"]) == 0:
+                    prnt = "There are no tasks!"
+                else:
+                    prnt = "There are next tasks:\n"
+                    for task in data['tasks']:
+                        prnt += task[1] + ", id: " + str(task[0]) + ", expire: " + str(task[2]) + "\n"
                 self.SendMessage(prnt)
             elif action_type == self.TYPE_DELETE_TASK:
                 # delete specific task
