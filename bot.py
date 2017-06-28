@@ -131,6 +131,11 @@ class TelegramBot():
         self.TYPE_DELETE_TASK = 30
         self.TYPE_SET_TASK_DONE = 40
         self.TYPE_EXIT = 50
+        self.TYPE_UPDATE_BOT = 60
+        self.TYPE_RESTART_BOT = 70
+
+        self.RestartBotFlag = False
+        self.UpdateBotFlag = False
 
         self._lg.writeLog(logger.INFO_LEVEL, "Bot is ready to work....")
     def _getUrl(self, command=None):
@@ -204,10 +209,15 @@ class TelegramBot():
                         data['infos'] = "Task with id {0} is done!".format(mes[2])
                     else:
                         data['infos'] = "Can't find task with id {0}".format(mes[2])
-                    return self.TYPE_SET_TASK_DONE
+                    return self.TYPE_SET_TASK_DONE, data
         elif mes[0] in ["exit", "quit"]:
             self._lg.writeLog(logger.INFO_LEVEL, "Work for bot is done. Closing...")
             return self.TYPE_EXIT, None
+        elif mes[0] == "bot":
+            if mes[1] == "update":
+                return self.TYPE_UPDATE_BOT, None
+            elif mes[1] == "restart":
+                return self.TYPE_RESTART_BOT, None
         return None, None
     def Remind(self):
         current_data = time.strftime("%Y-%m-%d")
@@ -234,7 +244,6 @@ class TelegramBot():
             print(data.status_code, data.text)
             return
         js_data = json.loads(data.text)
-        #print(js_data)
         if self.config['stop_bot']:
             running_bot = False
             self.config['stop_bot'] = False
@@ -276,6 +285,14 @@ class TelegramBot():
                 self.SendMessage(data['infos'])
             elif action_type == self.TYPE_EXIT:
                 # exit from bot
+                running_bot = False
+            elif action_type == self.TYPE_UPDATE_BOT:
+                self.UpdateBotFlag = True
+                self.SendMessage("Updating bot...")
+                running_bot = False
+            elif action_type == self.TYPE_RESTART_BOT:
+                self.RestartBotFlag = True
+                self.SendMessage("Restarting bot...")
                 running_bot = False
 
         # writing new config into file with incremented and updated update_id

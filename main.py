@@ -2,18 +2,30 @@
 '''
 main module, handling commnd line arguments and implements main bussiness logic
 '''
-import bot as telegrambot
+import subprocess as sb, time
 
 def main():
     '''
     main function
     '''
-    bot = telegrambot.TelegramBot()
+    bt = sb.Popen("python3 server.py &", shell=True, stdout=sb.PIPE)
     while True:
-        if not bot.GetUpdates():
+        output_ = bt.stdout.read().decode('utf-8')
+        # print(output_, "Restart" in output_)
+        if "Exit" in output_:
+            print("Exiting...")
             break
-        bot.Remind()
-        bot.SleepFor(3)
+        elif "Update" in output_:
+            sb.call("sleep 3; ./bot_script.sh update", shell=True)
+            bt = sb.Popen("python3 server.py --restarted &", shell=True, stdout=sb.PIPE)
+        elif "Restart" in output_:
+            print("Restarting bot..")
+            # sb.call("sleep 3; ./bot_script.sh restart", shell=True)
+            time.sleep(2)
+            bt = sb.Popen("python3 server.py --restarted &", shell=True, stdout=sb.PIPE)
+        time.sleep(2)
+
+
 
 if __name__ == "__main__":
     main()
