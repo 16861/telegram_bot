@@ -1,8 +1,8 @@
 # system classes import
-import json, requests, sqlite3, time, re
+import json, requests, sqlite3, time, re, os
 
 # user classes import
-import botcalendar, logger
+import botcalendar, logger, db_scripts
 
 CONFIG_NAME = "bot.conf"
 BASE_URL = "http://api.telegram.org/bot"
@@ -10,6 +10,15 @@ BASE_URL = "http://api.telegram.org/bot"
 class bot_db():
     def __init__(self):
         self.DBNAME = "botdb.sqlite3"
+        self.initDB()
+    def initDB(self):
+        if os.path.exists(self.DBNAME):
+            return
+        with sqlite3.connect(self.DBNAME) as conn:
+            conn.execute(db_scripts.CREATE_CHATS)
+            conn.execute(db_scripts.CREATE_SENDERS)
+            conn.execute(db_scripts.CREATE_MESSAGES)
+            conn.commit() 
     def insertNewTask(self, text, expire_date, update_id, sender_id, chat_id):
         query = "INSERT INTO messages"+ \
           "(text, expire_date, update_id, sender_id, chat_id, insert_date, done, deleted)" + \
@@ -265,7 +274,8 @@ class TelegramBot():
               max([mes["update_id"] for mes in js_data["result"]])+1
             fd.write(str(self.config).replace("'", "\""))
         return not_exit_flag
-
+    def InitDB(self):
+        self.db.initDB()
     def SendMessage(self, message):
         '''
         send message to chat
