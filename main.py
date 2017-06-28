@@ -9,11 +9,11 @@ def main():
     main function
     '''
     bot = telegrambot.TelegramBot()
-    while False:
+    while True:
         if not bot.GetUpdates():
             break
         bot.Remind()
-        bot.SleepFor()
+        bot.SleepFor(3)
 
 if __name__ == "__main__":
     main()

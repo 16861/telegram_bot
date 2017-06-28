@@ -18,6 +18,9 @@ class bot_db():
             conn.execute(db_scripts.CREATE_CHATS)
             conn.execute(db_scripts.CREATE_SENDERS)
             conn.execute(db_scripts.CREATE_MESSAGES)
+
+            conn.execute(db_scripts.INSERT_INTO_CHATS)
+            conn.execute(db_scripts.INSERT_INTO_SENDERS)
             conn.commit() 
     def insertNewTask(self, text, expire_date, update_id, sender_id, chat_id):
         query = "INSERT INTO messages"+ \
@@ -27,7 +30,7 @@ class bot_db():
         with sqlite3.connect(self.DBNAME) as conn:
             conn.execute(query)
             conn.commit()
-        print("Message with update_id: {0}, is  inserted!".format(update_id))
+        return "Message with update_id: {0}, is  inserted!".format(update_id)
 
     def getSendersIds(self):
         query = "SELECT id FROM senders"
@@ -241,8 +244,9 @@ class TelegramBot():
                 #write message into db
                 sender_id = self.db.getSenderIdByTelegramId(res['message']['from']['id'])
                 chat_id = self.db.getChatIdByTelegramId(res['message']['chat']['id'])
-                self.db.insertNewTask(data['task'], data['expire_date'], res['update_id'], \
+                result = self.db.insertNewTask(data['task'], data['expire_date'], res['update_id'], \
               sender_id, chat_id)
+                self._lg.writeLog(logger.INFO_LEVEL, result)
 
                 prnt = "Recieve message from: " + \
                   res["message"]["from"]["first_name"] + " " + \
@@ -269,7 +273,6 @@ class TelegramBot():
 
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
-            print(True)
             if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
                 self.config['last_updates'] = \
                  max([mes["update_id"] for mes in js_data["result"]])+1
@@ -277,8 +280,6 @@ class TelegramBot():
               max([mes["update_id"] for mes in js_data["result"]])+1
             fd.write(str(self.config).replace("'", "\""))
         return not_exit_flag
-    def InitDB(self):
-        self.db.initDB()
     def SendMessage(self, message):
         '''
         send message to chat
@@ -290,7 +291,7 @@ class TelegramBot():
         else:
             print("Message is not send!")
             print(resp.status_code, resp.text)
-    def SleepFor(self, sec=5):
+    def SleepFor(self, sec=3):
         '''
         sleeping for seconds defined in sec variable
         '''

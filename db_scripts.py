@@ -38,3 +38,11 @@ CREATE TABLE `messages` (
 );
 '''
 
+#inserting chats and senders data
+INSERT_INTO_CHATS = '''
+INSERT INTO `chats`(`chat_id`,`type`,`sender_id`) VALUES ('418486546','ptivate',1);
+'''
+INSERT_INTO_SENDERS = '''
+INSERT INTO `senders`(`first_name`,`last_name`,`id_user`) VALUES ('Igor','Kuzmenko','418486546');
+'''
+
