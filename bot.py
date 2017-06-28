@@ -85,7 +85,7 @@ class bot_db():
         update_query = "UPDATE messages SET deleted = 1 WHERE id = {0}".format(id)
         check_query = "SELECT id FROM messages WHERE id = {0}".format(id)
         with sqlite3.connect(self.DBNAME) as conn:
-            res = conn.execute(check_query)
+            res = conn.execute(check_query).fetchall()
             if len(res) == 0:
                 return False
             conn.execute(update_query)
@@ -225,7 +225,9 @@ class TelegramBot():
         get new updates, update updete_id in config, insert messages into db
         '''
         #get messages from Telegram API
-        not_exit_flag = True
+        running_bot = True
+        with open(CONFIG_NAME, 'r') as fd:
+            self.config = json.loads(fd.read())
         url = self._getUrl("get updates")
         data = self._sendCommand("GET", url)
         if data.status_code != 200:
@@ -233,9 +235,14 @@ class TelegramBot():
             return
         js_data = json.loads(data.text)
         #print(js_data)
-        if len(js_data["result"]) == 0:
+        if self.config['stop_bot']:
+            running_bot = False
+            self.config['stop_bot'] = False
+            with open(CONFIG_NAME, 'w') as fd:
+                fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
+        if len(js_data["result"]) == 0 or not running_bot:
             #no new messages
-            return True
+            return running_bot
 
         #process incoming messages
         for res in js_data['result']:
@@ -269,7 +276,7 @@ class TelegramBot():
                 self.SendMessage(data['infos'])
             elif action_type == self.TYPE_EXIT:
                 # exit from bot
-                not_exit_flag = False
+                running_bot = False
 
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
@@ -278,8 +285,8 @@ class TelegramBot():
                  max([mes["update_id"] for mes in js_data["result"]])+1
             self.config['last_updates'] = \
               max([mes["update_id"] for mes in js_data["result"]])+1
-            fd.write(str(self.config).replace("'", "\""))
-        return not_exit_flag
+            fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
+        return running_bot
     def SendMessage(self, message):
         '''
         send message to chat
