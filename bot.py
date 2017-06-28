@@ -244,11 +244,11 @@ class TelegramBot():
             print(data.status_code, data.text)
             return
         js_data = json.loads(data.text)
-        if self.config['stop_bot']:
-            running_bot = False
-            self.config['stop_bot'] = False
-            with open(CONFIG_NAME, 'w') as fd:
-                fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
+        # if self.config['stop_bot']:
+        #     running_bot = False
+        #     self.config['stop_bot'] = False
+        #     with open(CONFIG_NAME, 'w') as fd:
+        #         fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
         if len(js_data["result"]) == 0 or not running_bot:
             #no new messages
             return running_bot
