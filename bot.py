@@ -196,6 +196,7 @@ class TelegramBot():
         elif mes[0] in ["exit", "quit"]:
             self._lg.writeLog(logger.INFO_LEVEL, "Work for bot is done. Closing...")
             return self.TYPE_EXIT, None
+        return None, None
     def Remind(self):
         current_data = time.strftime("%Y-%m-%d")
         current_time = time.strftime("%H%M")
@@ -218,8 +219,6 @@ class TelegramBot():
             print(data.status_code, data.text)
             return
         js_data = json.loads(data.text)
-        print(js_data)
-
         if len(js_data["result"]) == 0:
             #no new messages
             return True
