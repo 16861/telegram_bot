@@ -8,7 +8,7 @@ def main():
     '''
     main function
     '''
-    bt = sb.Popen("python3 server.py &", shell=True, stdout=sb.PIPE)
+    bt = sb.Popen("python3 server.py --restarted &", shell=True, stdout=sb.PIPE)
     while True:
         output_ = bt.stdout.read().decode('utf-8')
         if "Exit" in output_:
