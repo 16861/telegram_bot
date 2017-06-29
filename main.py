@@ -11,11 +11,11 @@ def main():
     bt = sb.Popen("python3 server.py &", shell=True, stdout=sb.PIPE)
     while True:
         output_ = bt.stdout.read().decode('utf-8')
-        # print(output_, "Restart" in output_)
         if "Exit" in output_:
             print("Exiting...")
             break
         elif "Update" in output_:
+            print("Updating bot...")
             sb.call("sleep 3; ./bot_script.sh update", shell=True)
             bt = sb.Popen("python3 server.py --restarted &", shell=True, stdout=sb.PIPE)
         elif "Restart" in output_:

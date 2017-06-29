@@ -4,7 +4,7 @@ case $1 in
     git reset --hard
     git pull origin master
 ;;
-"start")
+"restart")
     if pgrep -x "python3" > /dev/null
     then
         echo "Process python3 is running. First stop it"

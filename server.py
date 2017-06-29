@@ -5,7 +5,7 @@ parser.add_argument('--restarted', action="store_true")
 args = parser.parse_args()
 bot = bot.TelegramBot()
 if args.restarted:
-    bot.SendMessage("Bot is up! )")
+    bot.SendMessage("I am up! )")
 while True:
     if not bot.GetUpdates():
         break

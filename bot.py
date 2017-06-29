@@ -112,6 +112,30 @@ class bot_db():
                 return None
             else:
                 return res
+    def getValidUserId(self):
+        query = "SELECT id_user FROM senders WHERE first_name = 'Igor' and last_name = 'Kuzmenko'"
+        with sqlite3.connect(self.DBNAME) as conn:
+            res = conn.execute(query).fetchall()
+            if len(res) == 0:
+                return None
+            else:
+                return res[0][0]
+    def checkTaskId(self, id):
+        query = "SELECT id FROM messages WHERE id = {0}".format(id)
+        with sqlite3.connect(self.DBNAME) as conn:
+            res = conn.execute(query).fetchall()
+            if res:
+                return True
+            else:
+                return False
+    def updeteTaskText(self, id, new_text):
+        query = "UPDATE messages SET text = '{1}' WHERE id = {0}".format(id, new_text)
+        with sqlite3.connect(self.DBNAME) as conn:
+            conn.execute(query)
+    def updeteTaskExpireDate(self, id, new_date):
+        query = "UPDATE messages SET expire_date = '{1)' WHERE id = {0}".format(id, new_date)
+        with sqlite3.connect(self.DBNAME) as conn:
+            conn.execute(query)
 class TelegramBot():
     '''
     telegram bot class
@@ -126,6 +150,9 @@ class TelegramBot():
         self._lg = logger.Logger()
 
 
+        self.ACTION_EDIT_TASK_ID = None
+
+        self.TYPE_ERROR = 0
         self.TYPE_NEW_TASK = 10
         self.TYPE_SHOW_TASKS = 20
         self.TYPE_DELETE_TASK = 30
@@ -133,6 +160,9 @@ class TelegramBot():
         self.TYPE_EXIT = 50
         self.TYPE_UPDATE_BOT = 60
         self.TYPE_RESTART_BOT = 70
+        self.TYPE_TASK_CHANGED = 80
+        self.TYPE_EDIT_TASK = 90
+        self.TYPE_TASK_CHANGED = 100
 
         self.RestartBotFlag = False
         self.UpdateBotFlag = False
@@ -166,26 +196,51 @@ class TelegramBot():
     def parseSenderMessage(self, message):
         '''
         parsing recieved mesage from chat participants
-        allowed commands: add task, delete task, show tasks
-
+        allowed commands: add task, delete task, show tasks, bot(block of command for manage bot)
+        edit, exit, set, help(in plans:)
         '''
         mes = " ".join(message.split()).split(' ')
         if len(mes) == 0:
             # void message is recieved
-            # self._lg.writeLog(logger.WARN_LEVEL, "Recieved void message!")
+            if self.ACTION_EDIT_TASK_ID:
+                self.SendMessage("Can't edit task, please specify parameters")
+                self.ACTION_EDIT_TASK_ID = None
             return None, None
-        # if mes[0] in ["add", "delete"] and len(mes) != 3:
-            # write to log
-            # return None, None
+
+        #when action is not edn aand expectict further data from user
+        if self.ACTION_EDIT_TASK_ID:
+            if len(mes) < 2:
+                return self.TYPE_ERROR, None
+            if mes[0] == "text":
+                new_text = re.search("\"(.+)\"", message).group(1)
+                self.db.updeteTaskText(self.ACTION_EDIT_TASK_ID, new_text)
+                self.ACTION_EDIT_TASK_ID = None
+            elif mes[0] == "date":
+                new_date = message.search("\d{2}.\d{2}.\d{2,4}", message).group(0)
+                if new_date[-3:] != '.':
+                    new_date = new_date[:-2] + "20" + new_date[-2:]
+                new_date = new_date[-4:] + "-" + new_date[3:5] + "-" + new_date[:2]
+                self.db.updeteTaskExpireDate(self.ACTION_EDIT_TASK_ID, new_date)
+                self.ACTION_EDIT_TASK_ID = None
+            return self.TYPE_TASK_CHANGED, None
+
+        #main loop, check entered commands
+        #there is next command: add, show, delete, set, exit,
+        # bot(block of command for manage bot), edit, help(in plans:) )
         if mes[0] == "add":
+            if len(mes) < 2:
+                return self.TYPE_ERROR, None
             if mes[1] == "task":
                 task = re.search("\"(.+)\"", message).group(1)
                 expire_date = re.search("\d{2}.\d{2}.\d{2,4}", message).group(0)
                 if expire_date[-3:] != '.':
-                    expire_date = expire_date.replace(expire_date[-2:], "20"+expire_date[-2:])
+                    expire_date = expire_date[:-2] + "20" + expire_date[-2:]
                 expire_date = expire_date[-4:] + "-" + expire_date[3:5] + "-" + expire_date[:2]
                 return self.TYPE_NEW_TASK, {"task": task, "expire_date": expire_date}
+        # show tasks either all or determined amount
         elif mes[0] == "show":
+            if len(mes) < 2:
+                return self.TYPE_ERROR, None
             if mes[1] == "tasks":
                 if len(mes) == 3 and mes[2].isdigit():
                     res = self.db.getTasks(mes[2])
@@ -193,15 +248,19 @@ class TelegramBot():
                     res = self.db.getTasks()
                 return self.TYPE_SHOW_TASKS, {'tasks': res}
         elif mes[0] == "delete":
-            if mes[1] == "task":
-                task_id = mes[2]
+            if len(mes) < 4:
+                return self.TYPE_ERROR, None
+            if mes[1] == "task" and mes[2] == "with" and mes[3] == "id":
+                task_id = mes[4]
                 data = {}
                 if not self.db.removeTask(task_id):
-                    data['infos'] =  "Wrong id! No task is deleted )"
+                    data['infos'] = "Wrong id! No task is deleted )"
                 else:
                     data['infos'] = "Delete task with id {0}".format(task_id)
                 return self.TYPE_DELETE_TASK, data
         elif mes[0] == "set":
+            if len(mes) < 4:
+                return self.TYPE_ERROR, None
             if mes[1] == "task":
                 if mes[3] == "done":
                     data = {}
@@ -214,12 +273,27 @@ class TelegramBot():
             self._lg.writeLog(logger.INFO_LEVEL, "Work for bot is done. Closing...")
             return self.TYPE_EXIT, None
         elif mes[0] == "bot":
+            if len(mes) < 2:
+                return self.TYPE_ERROR, None
             if mes[1] == "update":
                 return self.TYPE_UPDATE_BOT, None
             elif mes[1] == "restart":
                 return self.TYPE_RESTART_BOT, None
+        elif mes[0] == "edit":
+            if len(mes) < 5:
+                return self.TYPE_ERROR, None
+            if mes[1] == "task":
+                if mes[2] == "with" and mes[3] == "id":
+                    if self.db.checkTaskId(mes[4]):
+                        self.ACTION_EDIT_TASK_ID = mes[4]
+                        return self.TYPE_EDIT_TASK, None
+                    else:
+                        self.SendMessage("No such task in db!")
         return None, None
     def Remind(self):
+        '''
+        reminder currently in develepment need to add some basic functionality
+        '''
         current_data = time.strftime("%Y-%m-%d")
         current_time = time.strftime("%H%M")
         if current_time[:2] == "23":
@@ -244,28 +318,31 @@ class TelegramBot():
             print(data.status_code, data.text)
             return
         js_data = json.loads(data.text)
-        # if self.config['stop_bot']:
-        #     running_bot = False
-        #     self.config['stop_bot'] = False
-        #     with open(CONFIG_NAME, 'w') as fd:
-        #         fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
         if len(js_data["result"]) == 0 or not running_bot:
             #no new messages
             return running_bot
-
-        #process incoming messages
+        
+       
+        #process incoming message
+        user_id = int(self.db.getValidUserId())
+        type_of_message = ""
         for res in js_data['result']:
-            action_type, data = self.parseSenderMessage(res['message']['text'])
+            for key in res.keys():
+                if key != "update_id":
+                    type_of_message = key
+            if user_id != res[type_of_message]['from']['id']:
+                continue
+            action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower())
             if action_type == self.TYPE_NEW_TASK:
                 #write message into db
-                sender_id = self.db.getSenderIdByTelegramId(res['message']['from']['id'])
-                chat_id = self.db.getChatIdByTelegramId(res['message']['chat']['id'])
+                sender_id = self.db.getSenderIdByTelegramId(res[type_of_message]['from']['id'])
+                chat_id = self.db.getChatIdByTelegramId(res[type_of_message]['chat']['id'])
                 result = self.db.insertNewTask(data['task'], data['expire_date'], res['update_id'], \
               sender_id, chat_id)
                 self._lg.writeLog(logger.INFO_LEVEL, result)
 
                 prnt = "Recieve message from: " + \
-                  res["message"]["from"]["first_name"] + " " + \
+                  res[type_of_message]["from"]["first_name"] + " " + \
                   ". Task is added! )"
                 self.SendMessage(prnt)
             elif action_type == self.TYPE_SHOW_TASKS:
@@ -285,6 +362,7 @@ class TelegramBot():
                 self.SendMessage(data['infos'])
             elif action_type == self.TYPE_EXIT:
                 # exit from bot
+                self.SendMessage("Bot is down!")
                 running_bot = False
             elif action_type == self.TYPE_UPDATE_BOT:
                 self.UpdateBotFlag = True
@@ -294,6 +372,12 @@ class TelegramBot():
                 self.RestartBotFlag = True
                 self.SendMessage("Restarting bot...")
                 running_bot = False
+            elif action_type == self.TYPE_EDIT_TASK:
+                self.SendMessage("Enter new text or expire date(exaple text 'new text'):")
+            elif action_type == self.TYPE_TASK_CHANGED:
+                self.SendMessage("Successfully change task! Enter 'show tasks' to see other tasks :)")
+            elif action_type == self.TYPE_ERROR:
+                self.SendMessage("Wrong command. I don'n now what to do!")
 
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
