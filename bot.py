@@ -68,9 +68,9 @@ class bot_db():
         if limit == None return all tasks
         '''
         if not limit:
-            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 ORDER BY expire_date"
+            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done  = 0 ORDER BY expire_date"
         else:
-            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 ORDER BY expire_date LIMIT {0}".format(limit)
+            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done = 0 ORDER BY expire_date LIMIT {0}".format(limit)
         with sqlite3.connect(self.DBNAME) as conn:
             res = conn.execute(query).fetchall()
             if len(res) == 0:
@@ -97,7 +97,7 @@ class bot_db():
         update_query = "UPDATE messages SET done = 1 WHERE id = {0}".format(id)
         check_query = "SELECT id FROM messages WHERE id = {0}".format(id)
         with sqlite3.connect(self.DBNAME) as conn:
-            res = conn.execute(check_query)
+            res = conn.execute(check_query).fetchall()
             if len(res) == 0:
                 return False
             conn.execute(update_query)
