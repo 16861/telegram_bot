@@ -9,7 +9,7 @@ if args.restarted:
 while True:
     if not bot.GetUpdates():
         break
-    bot.Remind()
+    # bot.Remind()
     bot.SleepFor(2)
 
 if bot.RestartBotFlag:
