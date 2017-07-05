@@ -9,7 +9,8 @@ HABRAHABR_MAIN = "https://habrahabr.ru/"
 
 class TelegramBot():
     def __init__(self):
-        self.config = {}
+        with open(CONFIG_NAME, 'r') as fd:
+            self.config = json.loads(fd.read())
         self.db = sql3_bot.BotDB()
         self.calendar = botcalendar.BotCalendar(time.strftime("%d"), \
           time.strftime("%m"), time.strftime("%y"))
