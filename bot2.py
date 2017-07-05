@@ -118,7 +118,7 @@ class TelegramBot():
             if len(mes) < 2:
                 return self.TYPE_ERROR, None
             if mes[1] == "task":
-                new_task = re.search("\"(.+)\"", message).group(1)
+                new_task = re.search("[\"'](.+)[\"']", message).group(1)
                 expire_date = re.search("\d{2}.\d{2}.\d{2,4}", message).group(0)
                 if expire_date[-3:] != '.':
                     expire_date = expire_date[:-2] + "20" + expire_date[-2:]
