@@ -99,10 +99,17 @@ class MasterTelegramBot():
                             self.slavebot = sb.Popen("python3 server.py --restart &", shell=True, stdout=sb.PIPE)
                             response = "Slave bot is running..."
                     elif mes[1] == "update":
-                        sb.run("ps aux | pgrep -f 'python3 server'", shell=True)
+                        sb.run("ps aux | pgrep -f 'python3 server' | xargs kill -SIGTERM", shell=True)
                         sb.run("./bot_script.sh update", shell=True)
                         self.slavebot = sb.Popen("python3 server.py --restart &", shell=True, stdout=sb.PIPE)
                         response = "Slave bot is updated!"
+                    elif mes[1] == "status":
+                        sb_process_number = sb.run("ps aux | pgrep -f 'python3 server'", shell=True, stdout=sb.PIPE)
+                        processes_ = sb_process_number.stdout.decode('utf-8').split("\n")
+                        if len(processes_) > 2:
+                            response = "Slave bot is running"
+                        else:
+                            response = "Slave bot is down"
             elif mes[0] == "exit":
                 running_bot = False
                 response = "Bye )"
