@@ -1,9 +1,6 @@
 # scripts for creating db
 
 
-
-
-
 #first need to create and chats and senders
 CREATE_CHATS = '''
 CREATE TABLE `chats` (
@@ -32,6 +29,36 @@ CREATE TABLE `messgae_types` (
 );
 '''
 
+CREATE_BOOKMARKS = '''
+CREATE TABLE `bookmarks` (
+	`id`	INTEGER,
+	`url`	INTEGER NOT NULL,
+	`description`	TEXT,
+	`rate`	INTEGER,
+	`iduser`	INTEGER NOT NULL,
+	PRIMARY KEY(id),
+	FOREIGN KEY(`iduser`) REFERENCES senders ( id )
+);
+'''
+
+CREATE_TAGS = '''
+CREATE TABLE `tags` (
+	`id`	INTEGER,
+	`name`	TEXT NOT NULL UNIQUE,
+	`comments`	TEXT,
+	PRIMARY KEY(id)
+);
+'''
+
+CREATE_TAGS_TO_BOOKMARKS = '''
+CREATE TABLE `tags_to_bookmarks` (
+	`tag`	INTEGER NOT NULL,
+	`bookmark`	INTEGER NOT NULL,
+	FOREIGN KEY(`tag`) REFERENCES tags ( id ),
+	FOREIGN KEY(`bookmark`) REFERENCES bookmarks ( id )
+);
+'''
+
 #then creating messaging
 CREATE_MESSAGES = '''
 CREATE TABLE `messages` (
@@ -51,6 +78,32 @@ CREATE TABLE `messages` (
 );
 '''
 
+#triggers
+TRIGGER_BOOKMARKS_INSERT_1 = '''
+CREATE TRIGGER insert_bookmarks_description AFTER INSERT ON bookmarks
+WHEN NEW.description = ''
+BEGIN
+   UPDATE bookmarks set description = NULL where id = NEW.id;
+ END;
+'''
+
+TRIGGER_BOOKMARKS_INSERT_2 =  '''
+CREATE TRIGGER insert_bookmarks_rate AFTER INSERT ON bookmarks
+WHEN NEW.rate = 0
+BEGIN
+   UPDATE bookmarks set rate = NULL where id = NEW.id;
+ END;
+'''
+
+TRIGGER_BOOKAMARKS_INSERT_3 = '''
+CREATE TRIGGER insert_bookmarks_iduser AFTER INSERT ON bookmarks
+WHEN NEW.iduser = 0
+BEGIN
+  UPDATE bookmarks SET iduser = 1 WHERE id = NEW.id;
+END;
+'''
+
+
 #inserting chats and senders data
 INSERT_INTO_CHATS = '''
 INSERT INTO `chats`(`chat_id`,`type`,`sender_id`) VALUES ('418486546','ptivate',1);
@@ -61,4 +114,4 @@ INSERT INTO `senders`(`first_name`,`last_name`,`id_user`) VALUES ('Igor','Kuzmen
 
 #exported variable contains, all scripts. just add new one here and on initilization of db it will be executed
 #order matters!!!
-ALL_SCRIPTS = [CREATE_CHATS, CREATE_SENDERS, CREATE_MESSAGE_TYPES, CREATE_MESSAGES, INSERT_INTO_CHATS, INSERT_INTO_SENDERS]
+ALL_SCRIPTS = [CREATE_CHATS, CREATE_SENDERS, CREATE_MESSAGE_TYPES, CREATE_BOOKMARKS, CREATE_TAGS, CREATE_TAGS_TO_BOOKMARKS, CREATE_TAGS,  CREATE_MESSAGES, TRIGGER_BOOKMARKS_INSERT_1, TRIGGER_BOOKMARKS_INSERT_2, TRIGGER_BOOKAMARKS_INSERT_3, INSERT_INTO_CHATS, INSERT_INTO_SENDERS]

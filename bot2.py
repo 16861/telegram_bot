@@ -1,7 +1,7 @@
-import json, time, requests, re
+import json, time, requests, re, base64
 
 
-import logger, botcalendar, sql3_bot, tasks
+import logger, botcalendar, sql3_bot, tasks, bookmarks
 
 CONFIG_NAME = "bot.conf"
 BASE_URL = "http://api.telegram.org/bot"
@@ -16,6 +16,7 @@ class TelegramBot():
           time.strftime("%m"), time.strftime("%y"))
         self._lg = logger.Logger()
         self.task = tasks.Task()
+        self.bookmark = bookmarks.Bookmark()
         self.habr_newses = {}
 
 
@@ -33,14 +34,24 @@ class TelegramBot():
         self.TYPE_EDIT_TASK = 90
         self.TYPE_TASK_CHANGED = 100
         self.TYPE_SAY_HELLO = 110
-        self.TYPE_HABR_SHOW_NEWSES = 120
-        self.TYPE_HABR_GET_LINK = 130
+        self.TYPE_HABR = 120
+        self.TYPE_BOOKMARKS = 130
 
         self.RestartBotFlag = False
         self.UpdateBotFlag = False
 
         self._lg.writeLog(logger.INFO_LEVEL, "Bot is ready to work....")
 
+    def _b64decenc(self, string, encode=True):
+        '''
+        function for decodng and encoding inserted into db string
+        if encode == True return encoded string
+        perform b64decode otherwise
+        '''
+        if encode:
+            return base64.b64encode(bytes(string, "utf-8")).decode("utf-8")
+        else:
+            return base64.b64decode(string).decode("utf-8")
     def _getUrl(self, command=None):
         '''
         get url for sending to telegram server
@@ -124,6 +135,12 @@ class TelegramBot():
                     expire_date = expire_date[:-2] + "20" + expire_date[-2:]
                 expire_date = expire_date[-4:] + "-" + expire_date[3:5] + "-" + expire_date[:2]
                 return self.TYPE_NEW_TASK, {"task": new_task, "expire_date": expire_date}
+            if mes[1] == "bookmark":
+                if "https://" in  mes[2] or "https://" in mes[2]:
+                    b64bookmark = self._b64decenc(mes[2])
+                    self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark))
+                    return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
+                return self.TYPE_BOOKMARKS, {"infos": "Wrong syntax! Can't add bookmark!"}
             
         # show tasks either all or determined amount
         elif mes[0] == "show":
@@ -135,6 +152,23 @@ class TelegramBot():
                 else:
                     res = self.db.execute_script(self.task.getTasksQuery())
                 return self.TYPE_SHOW_TASKS, {'tasks': res}
+            if mes[1] == "bookmarks":
+                if len(mes) == 3 and mes[2].isdigit():
+                    db_res = self.db.execute_script(self.bookmark.getBookmarks(mes[2]))
+                else:
+                    db_res = self.db.execute_script(self.bookmark.getBookmarks())
+                if len(db_res) == 0:
+                    return self.TYPE_BOOKMARKS, {'infos': "There are no bookmarks!"}
+                send_mes = ""
+                for bookmark in db_res:
+                    if bookmark[1]:
+                        send_mes += "Description: {0}".format(bookmark[1])
+                    if bookmark[2]:
+                        send_mes += ", rate: {0}, ".format(bookmark[2])
+                    if mes[-1] == "full":
+                        send_mes += " id: {0}, ".format(bookmark[3])
+                    send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
+                return self.TYPE_BOOKMARKS, {'infos': send_mes}
         #delete task
         elif mes[0] == "delete":
             if len(mes) < 4:
@@ -147,8 +181,10 @@ class TelegramBot():
                     data['infos'] = "Wrong id! No task is deleted )"
                 else:
                     self.db.execute_script(update_query)
-                    data['infos'] = "Delete task with id {0}".format(task_id)
+                    data['infos'] = "Deleted task with id {0}".format(task_id)
                 return self.TYPE_DELETE_TASK, data
+            if mes[1] == "bookmark" and mes[2] == "with" and mes[2] == "id":
+                pass
         elif mes[0] == "update":
             if len(mes) < 4:
                 return self.TYPE_ERROR, None
@@ -172,27 +208,34 @@ class TelegramBot():
             if mes[1] == "show":
                 site = requests.get(HABRAHABR_MAIN)
                 news_temp = re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>", site.text)
+                # re.findall("<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
+
                 self.habr_newses = []
                 indx = 1
-                data = ""
+                infos = ""
                 for link, text in news_temp:
                     self.habr_newses.append({"index": indx, "title": text, "link":link})
                     indx += 1
                 if len(mes) == 3 and mes[2].isdigit() and 1 < int(mes[2]) < indx:
                     indx = int(mes[2])
                 for news in self.habr_newses:
-                    data += str(news["index"]) + ", " + news['title'] + "\n"
+                    infos += str(news["index"]) + ". " + news['title'] + "\n"
                     if news["index"] >= indx:
                         break
-                return self.TYPE_HABR_SHOW_NEWSES, data
+                return self.TYPE_HABR, {'infos': infos}
             elif mes[1] == "link":
                 if len(mes) < 3:
                     return self.TYPE_ERROR, None
-                print([news['index'] for news in self.habr_newses])
                 if self.habr_newses and int(mes[2]) in [news['index'] for news in self.habr_newses]:
-                    return self.TYPE_HABR_GET_LINK, "Link: {0}".format([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
+                    data = {"infos": "Link: {0}".format([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])} 
                 else:
-                    self.SendMessage("No news found!")
+                    data = {"infos": "No news found!"}
+                return self.TYPE_HABR, data
+            elif mes[1] == "remember":
+                # add habr link to bookmarks
+                b64bookmark = self._b64decenc([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
+                self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark))
+                return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
                 return self.TYPE_ERROR, None
@@ -278,8 +321,8 @@ class TelegramBot():
                 self.SendMessage("Successfully change task! Enter 'show tasks' to see other tasks :)")
             elif action_type == self.TYPE_ERROR:
                 self.SendMessage("Wrong command. I don'n now what to do!")
-            elif action_type == self.TYPE_HABR_SHOW_NEWSES or action_type == self.TYPE_HABR_GET_LINK:
-                self.SendMessage(data)
+            elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR:
+                self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
             if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
@@ -289,7 +332,22 @@ class TelegramBot():
               max([mes["update_id"] for mes in js_data["result"]])+1
             fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
         return running_bot
+    def Remind(self):
+        '''
+        reminder currently in develepment need to add some basic functionality
+        '''
+        current_data = time.strftime("%Y-%m-%d")
+        current_time = time.strftime("%H%M")
+        if current_time == "1900":
+            to_date = "2017-" + self.calendar.getData(7)
+            print("To date: ", to_date)
+            messege_to_chat = "You have next tasks ahead:\n"
+            for task in self.db.execute_script(self.task.getTaskForPeriodQuery(current_data, to_date)):
+                messege_to_chat += task[1] + ", id: " + str(task[0]) + \
+                  ", expires " + task[2] + "\n"
+            self.SendMessage(messege_to_chat) 
 
+    # tech function
     def getValidUserId(self):
         query = "SELECT id_user FROM senders WHERE first_name = 'Igor' and last_name = 'Kuzmenko'"
         res = self.db.execute_script(query)
