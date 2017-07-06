@@ -208,7 +208,7 @@ class TelegramBot():
             if mes[1] == "show":
                 site = requests.get(HABRAHABR_MAIN)
                 news_temp = re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>", site.text)
-                # re.findall("<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
+                # re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>.*+<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
 
                 self.habr_newses = []
                 indx = 1
