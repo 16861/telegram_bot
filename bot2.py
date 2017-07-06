@@ -162,9 +162,9 @@ class TelegramBot():
                 send_mes = ""
                 for bookmark in db_res:
                     if bookmark[1]:
-                        send_mes += "Description: {0}".format(bookmark[1])
+                        send_mes += "Description: {0}, ".format(self._b64decenc(bookmark[1], encode=False))
                     if bookmark[2]:
-                        send_mes += ", rate: {0}, ".format(bookmark[2])
+                        send_mes += " rate: {0}, ".format(bookmark[2])
                     if mes[-1] == "full":
                         send_mes += " id: {0}, ".format(bookmark[3])
                     send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
@@ -234,7 +234,8 @@ class TelegramBot():
             elif mes[1] == "remember":
                 # add habr link to bookmarks
                 b64bookmark = self._b64decenc([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
-                self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark))
+                b64description = self._b64decenc([news['title'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
+                self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark, description=b64description))
                 return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
