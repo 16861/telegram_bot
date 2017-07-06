@@ -233,6 +233,17 @@ class TelegramBot():
                 return self.TYPE_HABR, data
             elif mes[1] == "remember":
                 # add habr link to bookmarks
+                if not self.habr_newses:
+                    site = requests.get(HABRAHABR_MAIN)
+                    news_temp = re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>", site.text)
+                    # re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>.*+<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
+
+                    self.habr_newses = []
+                    indx = 1
+                    infos = ""
+                    for link, text in news_temp:
+                        self.habr_newses.append({"index": indx, "title": text, "link":link})
+                        indx += 1
                 b64bookmark = self._b64decenc([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
                 b64description = self._b64decenc([news['title'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
                 self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark, description=b64description))
