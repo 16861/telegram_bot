@@ -104,6 +104,7 @@ class TelegramBot():
             return None, None
         if mes == "hello bot":
             return self.TYPE_SAY_HELLO, None
+        data = {}
 
         #when action is not edn aand expectict further data from user
         if self.ACTION_EDIT_TASK_ID:
@@ -168,6 +169,7 @@ class TelegramBot():
                     if mes[-1] == "full":
                         send_mes += " id: {0}, ".format(bookmark[3])
                     send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
+                print(send_mes)
                 return self.TYPE_BOOKMARKS, {'infos': send_mes}
         #delete task
         elif mes[0] == "delete":
@@ -175,7 +177,7 @@ class TelegramBot():
                 return self.TYPE_ERROR, None
             if mes[1] == "task" and mes[2] == "with" and mes[3] == "id":
                 task_id = mes[4]
-                data = {}
+                
                 [check_query, update_query] = self.task.removeTaskQuery(task_id)
                 if not self.db.execute_script(check_query):
                     data['infos'] = "Wrong id! No task is deleted )"
@@ -183,8 +185,15 @@ class TelegramBot():
                     self.db.execute_script(update_query)
                     data['infos'] = "Deleted task with id {0}".format(task_id)
                 return self.TYPE_DELETE_TASK, data
-            if mes[1] == "bookmark" and mes[2] == "with" and mes[2] == "id":
-                pass
+            if mes[1] == "bookmark" and mes[2] == "with" and mes[3] == "id":
+                if not mes[4].isdigit():
+                    data['infos'] = "Wrong input"
+                elif len(self.db.execute_script(self.bookmark.checkIdQuery(mes[4]))) > 0:
+                    self.db.execute_script(self.bookmark.deleteBookmarkQuery(mes[4]))
+                    data['infos'] = "Deleted bookmark with id: {0}".format(mes[4])
+                else:
+                    data['infos'] = "There are no such bookmark with id: {0}".format(mes[4])
+                return self.TYPE_BOOKMARKS, data
         elif mes[0] == "update":
             if len(mes) < 4:
                 return self.TYPE_ERROR, None
