@@ -106,6 +106,7 @@ class MasterTelegramBot():
                     elif mes[1] == "status":
                         sb_process_number = sb.run("ps aux | pgrep -f 'python3 server'", shell=True, stdout=sb.PIPE)
                         processes_ = sb_process_number.stdout.decode('utf-8').split("\n")
+                        print(processes_)
                         if len(processes_) > 2:
                             response = "Slave bot is running"
                         else:

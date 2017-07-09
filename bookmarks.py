@@ -42,5 +42,10 @@ class Bookmark():
         query = "DELETE FROM bookmarks WHERE id = {0}".format(id)
         return query
 
+    #others
+    def checkIdQuery(self, id):
+        query = "SELECT id FROM bookmarks WHERE id={0}".format(id)
+        return query
+
     #Tags section
     #CRUD for tags
