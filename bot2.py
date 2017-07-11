@@ -1,7 +1,7 @@
 import json, time, requests, re, base64
 
 
-import logger, botcalendar, sql3_bot, tasks, bookmarks
+import logger, botcalendar, sql3_bot, tasks, bookmarks, reminder
 
 CONFIG_NAME = "bot.conf"
 BASE_URL = "http://api.telegram.org/bot"
@@ -17,7 +17,9 @@ class TelegramBot():
         self._lg = logger.Logger()
         self.task = tasks.Task()
         self.bookmark = bookmarks.Bookmark()
+        self.reminder= reminder.Reminder()
         self.habr_newses = {}
+        self.one_minute_remind = time.strftime("%H:%M")
 
 
         self.ACTION_EDIT_TASK_ID = None
@@ -36,6 +38,7 @@ class TelegramBot():
         self.TYPE_SAY_HELLO = 110
         self.TYPE_HABR = 120
         self.TYPE_BOOKMARKS = 130
+        self.TYPE_REMINDERS = 140
 
         self.RestartBotFlag = False
         self.UpdateBotFlag = False
@@ -142,7 +145,25 @@ class TelegramBot():
                     self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark))
                     return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
                 return self.TYPE_BOOKMARKS, {"infos": "Wrong syntax! Can't add bookmark!"}
-            
+            if mes[1] == "reminder":
+                #add new reminder
+                # syntax : add reminder "name" HH:MM [everyday,n times]
+                found_text = re.search("[\"'](.+)[\"']", message)
+                found_time = re.search("\d{2}:\d{2}", message)
+                found_count = re.search("[0-9]+\stimes?$|everyday$", message)
+                if not found_text or not found_count or not found_time:
+                    return self.TYPE_ERROR, None
+                name = found_text.group(1)
+                time_to_remind = found_time.group(0)
+                temp_count = found_count.group(0)
+                if temp_count == "everyday":
+                    count = -1
+                else:
+                    count = int(temp_count.split(' ')[0])
+                if len(name) < 1 or len(time_to_remind) < 5:
+                    return self.TYPE_REMINDERS, {"infos": "wrong syntax"}
+                self.db.execute_script(self.reminder.createReminderQuery(name, time_to_remind, count))
+                return self.TYPE_REMINDERS, {"infos": "Reminder is added!"}
         # show tasks either all or determined amount
         elif mes[0] == "show":
             if len(mes) < 2:
@@ -171,6 +192,20 @@ class TelegramBot():
                     send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
                 print(send_mes)
                 return self.TYPE_BOOKMARKS, {'infos': send_mes}
+            if mes[1] == "reminders":
+                reminders = self.db.execute_script(self.reminder.getRemindersQuery())
+                message_to_send = ''
+                for r in reminders:
+                    message_to_send += "Reminder name: {0}, alert time: {1}".format(r[1], r[2])
+                    if r[3] == -1:
+                        message_to_send += " frequency: everyday"
+                    else:
+                        message_to_send += " freqency: {0}".format(r[3])
+                
+                    if len(mes) > 2 and mes[2] == 'full':
+                        message_to_send += ', id: {0}'.format(r[0])
+                    message_to_send += "\n"
+                return self.TYPE_REMINDERS, {"infos": message_to_send}
         #delete task
         elif mes[0] == "delete":
             if len(mes) < 4:
@@ -194,6 +229,16 @@ class TelegramBot():
                 else:
                     data['infos'] = "There are no such bookmark with id: {0}".format(mes[4])
                 return self.TYPE_BOOKMARKS, data
+            if mes[1] == "reminder" and mes[2] == "with" and mes[3] == "id":
+                if not mes[4].isdigit():
+                    return self.TYPE_ERROR, None
+                [check_query, delete_query] = self.reminder.deleteReminderQuery(mes[4])
+                if self.db.execute_script(check_query):
+                    self.db.execute_script(delete_query)
+                    message_to_send = "Reminder succesfully deleted!"
+                else:
+                    message_to_send = "No reminder found!"
+                return self.TYPE_REMINDERS, {"infos": message_to_send}
         elif mes[0] == "update":
             if len(mes) < 4:
                 return self.TYPE_ERROR, None
@@ -267,6 +312,25 @@ class TelegramBot():
             elif mes[1] == "exit":
                 return self.TYPE_EXIT, None
         return None, None
+    def CheckReminders(self):
+        if self.one_minute_remind == time.strftime("%H:%M"):
+            return
+        self.one_minute_remind = time.strftime("%H:%M")
+        reminders = self.db.execute_script(self.reminder.getRemindersQuery())
+        current_time = time.strftime("%H:%M")
+        for r in reminders:
+            if current_time == r[2]:
+                self.SendMessage("Remind: {0} Get up and do your work!".format(r[1]))
+                cnt = int(r[3])
+                if cnt != -1:
+                    cnt -=  1
+                    print("cnt: ", cnt)
+                    if cnt > 0:
+                        print(self.reminder.updateReminderQuery('counter', r[0], cnt))
+                        self.db.execute_script(self.reminder.updateReminderQuery('counter', r[0], cnt))
+                    else:
+                        _, delete_query = self.reminder.deleteReminderQuery(str(r[0]))
+                        self.db.execute_script(delete_query)
     def GetUpdates(self):
         '''
         get new updates, update updete_id in config, insert messages into db
@@ -342,7 +406,8 @@ class TelegramBot():
                 self.SendMessage("Successfully change task! Enter 'show tasks' to see other tasks :)")
             elif action_type == self.TYPE_ERROR:
                 self.SendMessage("Wrong command. I don'n now what to do!")
-            elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR:
+            elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR \
+              or action_type == self.TYPE_REMINDERS:
                 self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
