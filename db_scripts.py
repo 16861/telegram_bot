@@ -80,7 +80,7 @@ CREATE TABLE `messages` (
 CREATE_REMINDERS = '''
 CREATE TABLE `reminders` (
 	`id`	INTEGER,
-	`text`	TEXT NOT NULL,
+	`name`	TEXT NOT NULL,
 	`time_`	TEXT NOT NULL,
 	`count_`	INTEGER NOT NULL DEFAULT -1,
 	PRIMARY KEY(id)
