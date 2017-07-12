@@ -67,7 +67,9 @@ class MasterTelegramBot():
             #no new messages
             return running_bot
         user_id = self.config['user_id']
+        response = None
         for res in js_data['result']:
+            
             for key in res.keys():
                 if key != "update_id":
                     type_of_message = key
