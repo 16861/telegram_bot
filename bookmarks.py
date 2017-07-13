@@ -7,22 +7,24 @@ class Bookmark():
         pass
     #CRUD for bookmarks
     #create bookmark
-    def createBookmarkQuery(self, url_, iduser = None, description=None, rate=None):
+    def createBookmarkQuery(self, url_, iduser = None, description=None, comments=None, rate=None):
         if not description:
             description = ""
         if not rate:
             rate = 0
         if not iduser:
             iduser = 0
-        query = "insert into bookmarks(url, description, rate, iduser) values('{0}','{1}',{2},{3})".format(url_, description, rate, iduser)
+        if not comments:
+            comments = ""
+        query = "insert into bookmarks(url, description, rate, iduser, comments) values('{0}','{1}',{2}, {3}, '{4}')".format(url_, description, rate, iduser, comments)
         return query
 
     #read bookmark
     def getBookmarks(self, tags=None, count=None):
         if not count or type(count) != int :
-            query = "SELECT url, description, rate, id FROM bookmarks "
+            query = "SELECT url, description, rate, id, comments FROM bookmarks "
         else:
-            query = "SELECT url, description, rate, id FROM bookmarks LIMIT {0}".format(count)
+            query = "SELECT url, description, rate, i, comments FROM bookmarks LIMIT {0}".format(count)
         return query
 
     #update bookmark

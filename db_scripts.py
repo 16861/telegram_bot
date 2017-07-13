@@ -36,6 +36,7 @@ CREATE TABLE `bookmarks` (
 	`description`	TEXT,
 	`rate`	INTEGER,
 	`iduser`	INTEGER NOT NULL,
+	`comments` TEXT,
 	PRIMARY KEY(id),
 	FOREIGN KEY(`iduser`) REFERENCES senders ( id )
 );
@@ -75,7 +76,7 @@ CREATE TABLE `messages` (
 	FOREIGN KEY(`sender_id`) REFERENCES senders ( id ),
 	FOREIGN KEY(`chat_id`) REFERENCES chats ( id ),
 	FOREIGN KEY(`type`) REFERENCES message_types ( id )
-);
+);title
 '''
 CREATE_REMINDERS = '''
 CREATE TABLE `reminders` (
@@ -112,6 +113,15 @@ BEGIN
 END;
 '''
 
+TRIGGER_BOOKAMARKS_INSERT_4 = '''
+CREATE TRIGGER insert_bookmarks_comments AFTER INSERT ON bookmarks
+WHEN NEW.comments = ''
+BEGIN
+  UPDATE bookmarks SET comments = NULL WHERE id = NEW.id;
+END;
+'''
+
+
 TRIGGER_REMINDER_INSERT = '''
 CREATE TRIGGER insert_reminders_iduser AFTER INSERT ON reminders
 WHEN (NEW.userid is NULL)
@@ -134,4 +144,4 @@ INSERT INTO `senders`(`first_name`,`last_name`,`id_user`) VALUES ('Igor','Kuzmen
 ALL_SCRIPTS = [CREATE_CHATS, CREATE_SENDERS, CREATE_MESSAGE_TYPES, \
    CREATE_BOOKMARKS, CREATE_TAGS, CREATE_TAGS_TO_BOOKMARKS, CREATE_MESSAGES, \
    CREATE_REMINDERS, TRIGGER_BOOKMARKS_INSERT_1, TRIGGER_BOOKMARKS_INSERT_2, \
-   TRIGGER_BOOKAMARKS_INSERT_3, INSERT_INTO_CHATS, INSERT_INTO_SENDERS]
+   TRIGGER_BOOKAMARKS_INSERT_3, TRIGGER_BOOKAMARKS_INSERT_4, INSERT_INTO_CHATS, INSERT_INTO_SENDERS]

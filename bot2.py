@@ -1,4 +1,5 @@
 import json, time, requests, re, base64
+from bs4 import BeautifulSoup as BS
 
 
 import logger, botcalendar, sql3_bot, tasks, bookmarks, reminder
@@ -85,6 +86,8 @@ class TelegramBot():
         '''
         send message to chat
         '''
+        message = message.replace("#", "_SHARP")
+        message = message.replace("&", "_AMP")
         url = self._getUrl("send message")
         resp = self._sendCommand("GET", url+message)
         if resp.status_code == 200:
@@ -188,13 +191,19 @@ class TelegramBot():
                     if bookmark[2]:
                         send_mes += " rate: {0}, ".format(bookmark[2])
                     if mes[-1] == "full":
-                        send_mes += " id: {0}, ".format(bookmark[3])
+                        if bookmark[4]:
+                            comments_ = self._b64decenc(bookmark[4], encode=False)
+                            send_mes += " id: {0},\nComments: {1}\n".format(bookmark[3], comments_)
+                        else:
+                            send_mes += " id: {0}, ".format(bookmark[3])
                     send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
-                print(send_mes)
                 return self.TYPE_BOOKMARKS, {'infos': send_mes}
             if mes[1] == "reminders":
                 reminders = self.db.execute_script(self.reminder.getRemindersQuery())
+                
                 message_to_send = ''
+                # if len(reminders) < 1:
+                    
                 for r in reminders:
                     message_to_send += "Reminder name: {0}, alert time: {1}".format(r[1], r[2])
                     if r[3] == -1:
@@ -260,47 +269,25 @@ class TelegramBot():
             if len(mes) < 2:
                 return self.TYPE_ERROR, None
             if mes[1] == "show":
-                site = requests.get(HABRAHABR_MAIN)
-                news_temp = re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>", site.text)
-                # re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>.*+<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
-
-                self.habr_newses = []
-                indx = 1
-                infos = ""
-                for link, text in news_temp:
-                    self.habr_newses.append({"index": indx, "title": text, "link":link})
-                    indx += 1
-                if len(mes) == 3 and mes[2].isdigit() and 1 < int(mes[2]) < indx:
-                    indx = int(mes[2])
-                for news in self.habr_newses:
-                    infos += str(news["index"]) + ". " + news['title'] + "\n"
-                    if news["index"] >= indx:
-                        break
-                return self.TYPE_HABR, {'infos': infos}
+                return self.TYPE_HABR, {'infos': self.getHabrNewses()}
             elif mes[1] == "link":
                 if len(mes) < 3:
                     return self.TYPE_ERROR, None
                 if self.habr_newses and int(mes[2]) in [news['index'] for news in self.habr_newses]:
-                    data = {"infos": "Link: {0}".format([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])} 
+                    record = [news for news in self.habr_newses if news['index'] == int(mes[2])][0]
+                    data = {"infos": "Description: {0}\nhabr Link: {1}".format(record["desc"], record["link"])} 
                 else:
                     data = {"infos": "No news found!"}
                 return self.TYPE_HABR, data
             elif mes[1] == "remember":
                 # add habr link to bookmarks
                 if not self.habr_newses:
-                    site = requests.get(HABRAHABR_MAIN)
-                    news_temp = re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>", site.text)
-                    # re.findall("<a.+?href=\"(https://habrahabr.ru/post/[0-9]+?/)\".*?>(.*?)</a>.*+<div class=\"content html_format\">(.*?)</div>", site.text, flags=re.DOTALL)
-
-                    self.habr_newses = []
-                    indx = 1
-                    infos = ""
-                    for link, text in news_temp:
-                        self.habr_newses.append({"index": indx, "title": text, "link":link})
-                        indx += 1
-                b64bookmark = self._b64decenc([news['link'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
-                b64description = self._b64decenc([news['title'] for news in self.habr_newses if news['index'] == int(mes[2])][0])
-                self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark, description=b64description))
+                    self.getHabrNewses()
+                record = [news for news in self.habr_newses if news['index'] == int(mes[2])][0]
+                b64link = self._b64decenc(record["link"])
+                b64description = self._b64decenc(record["title"])
+                b64comments = self._b64decenc(record["desc"])
+                self.db.execute_script(self.bookmark.createBookmarkQuery(b64link, description=b64description, comments=b64comments))
                 return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
@@ -312,6 +299,32 @@ class TelegramBot():
             elif mes[1] == "exit":
                 return self.TYPE_EXIT, None
         return None, None
+    def getHabrNewses(self):
+        '''
+        init self.habr_newses and send respod for 'habr show' command
+        '''
+        site = requests.get(HABRAHABR_MAIN)
+
+        self.habr_newses = []
+        soup = BS(site.text, 'lxml')
+        links = soup.find_all("a", {"class", "post__title_link"})
+        divs = soup.find_all("div", {"class", "html_format"})
+        tags = re.compile("<.*?>")
+        # blanks = re.compile("^\n$")
+        indx = 1
+        if len(links) != len(divs):
+            return self.TYPE_ERROR, None
+        for index, link in enumerate(links):
+            news_links = re.findall("<a.+?href=\"(https://habrahabr.ru/[a-zA-Z/]+/[0-9]+?/)\">(.*?)</a>", str(link))
+            desc = tags.sub('', str(divs[index]))
+            # desc = blanks.sub('', desc)
+            for link, title in news_links:
+                self.habr_newses.append({"index": indx, "link": link, "title": title, "desc": desc})
+            indx += 1
+        infos = ""
+        for news in self.habr_newses:
+            infos += str(news["index"]) + ". " + news['title'] + "\n"
+        return infos
     def CheckReminders(self):
         if self.one_minute_remind == time.strftime("%H:%M"):
             return
@@ -382,23 +395,9 @@ class TelegramBot():
                     for task in data['tasks']:
                         prnt += task[1] + ", id: " + str(task[0]) + ", expire: " + str(task[2]) + "\n"
                 self.SendMessage(prnt)
-            elif action_type == self.TYPE_DELETE_TASK:
-                # delete specific task
-                self.SendMessage(data['infos'])
-            elif action_type == self.TYPE_SET_TASK_DONE:
-                # mark some task(by id) as complete
-                self.SendMessage(data['infos'])
             elif action_type == self.TYPE_EXIT:
                 # exit from bot
                 self.SendMessage("Bot is down!")
-                running_bot = False
-            elif action_type == self.TYPE_UPDATE_BOT:
-                self.UpdateBotFlag = True
-                self.SendMessage("Updating bot...")
-                running_bot = False
-            elif action_type == self.TYPE_RESTART_BOT:
-                self.RestartBotFlag = True
-                self.SendMessage("Restarting bot...")
                 running_bot = False
             elif action_type == self.TYPE_EDIT_TASK:
                 self.SendMessage("Enter new text or expire date(exaple text 'new text'):")
@@ -407,7 +406,8 @@ class TelegramBot():
             elif action_type == self.TYPE_ERROR:
                 self.SendMessage("Wrong command. I don'n now what to do!")
             elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR \
-              or action_type == self.TYPE_REMINDERS:
+              or action_type == self.TYPE_REMINDERS or action_type == self.TYPE_SET_TASK_DONE \
+              or action_type == self.TYPE_DELETE_TASK :
                 self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:
