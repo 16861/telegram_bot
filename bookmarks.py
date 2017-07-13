@@ -20,11 +20,13 @@ class Bookmark():
         return query
 
     #read bookmark
-    def getBookmarks(self, tags=None, count=None):
-        if not count or type(count) != int :
-            query = "SELECT url, description, rate, id, comments FROM bookmarks "
+    def getBookmarks(self, tags=None, count=None, iduser=None):
+        if not iduser:
+            iduser = 1
+        if not count or type(count) != int:
+            query = "SELECT url, description, rate, id, comments FROM bookmarks WHERE iduser = {0}".format(iduser)
         else:
-            query = "SELECT url, description, rate, i, comments FROM bookmarks LIMIT {0}".format(count)
+            query = "SELECT url, description, rate, i, comments FROM bookmarks WHERE iduser = {0} LIMIT {1}".format(iduser, count)
         return query
 
     #update bookmark

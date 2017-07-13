@@ -10,14 +10,16 @@ class Task():
           " VALUES('{0}', '{1}', '{2}', {3}, {4}, '{5}', {6}, {7}, {8})".format( \
           text, expire_date, update_id, sender_id, chat_id, time.strftime("%Y-%m-%d %H:%M:%S"), 0, 0, 1)
         return query
-    def getTasksInfosQuery(self, limit=None):
+    def getTasksInfosQuery(self, limit=None, iduser=None):
         '''
         if limit == None return all tasks
         '''
+        if not iduser:
+            iduser = 1
         if not limit:
-            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done  = 0 AND type = 1 ORDER BY expire_date"
+            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done  = 0 AND type = 1 AND iduser = {0} ORDER BY expire_date".format(iduser)
         else:
-            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done = 0 AND type = 1 ORDER BY expire_date LIMIT {0}".format(limit)
+            query = "SELECT id, text, expire_date FROM messages WHERE deleted = 0 AND done = 0 AND type = 1 AND iduser = {0} ORDER BY expire_date LIMIT {1}".format(iduser, limit)
         return query
     def getTaskForPeriodQuery(self, start_date, end_date):
         query = "SELECT id, text, expire_date FROM messages WHERE expire_date \

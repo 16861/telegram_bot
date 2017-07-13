@@ -95,7 +95,7 @@ class TelegramBot():
         else:
             print("Message is not send!")
             print(resp.status_code, resp.text)
-    def parseSenderMessage(self, message):
+    def parseSenderMessage(self, message, iduser):
         '''
         parsing recieved mesage from chat participants
         allowed commands: add task, delete task, show tasks, bot(block of command for manage bot)
@@ -165,7 +165,8 @@ class TelegramBot():
                     count = int(temp_count.split(' ')[0])
                 if len(name) < 1 or len(time_to_remind) < 5:
                     return self.TYPE_REMINDERS, {"infos": "wrong syntax"}
-                self.db.execute_script(self.reminder.createReminderQuery(name, time_to_remind, count))
+                b64name = self._b64decenc(name)
+                self.db.execute_script(self.reminder.createReminderQuery(b64name, time_to_remind, count))
                 return self.TYPE_REMINDERS, {"infos": "Reminder is added!"}
         # show tasks either all or determined amount
         elif mes[0] == "show":
@@ -205,7 +206,7 @@ class TelegramBot():
                 # if len(reminders) < 1:
                     
                 for r in reminders:
-                    message_to_send += "Reminder name: {0}, alert time: {1}".format(r[1], r[2])
+                    message_to_send += "Reminder name: {0}, alert time: {1}".format(self._b64decenc(r[1], encode=False), r[2])
                     if r[3] == -1:
                         message_to_send += " frequency: everyday"
                     else:
@@ -373,7 +374,7 @@ class TelegramBot():
                     type_of_message = key
             if user_id != res[type_of_message]["from"]["id"]:
                 continue
-            action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower())
+            action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower(), res[type_of_message]["from"]["id"])
             if action_type == self.TYPE_NEW_TASK:
                 #write message into db
                 sender_id = self.getSenderIdByTelegramId(res[type_of_message]['from']['id'])
