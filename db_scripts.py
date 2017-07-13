@@ -117,7 +117,7 @@ TRIGGER_BOOKMARKS_INSERT_4 = '''
 CREATE TRIGGER insert_bookmarks_comments AFTER INSERT ON bookmarks
 WHEN NEW.comments = ''
 BEGIN
-  UPDATE bookmarks SET comments = NULL WHERE id = NEW.id;
+  UPDATE bookmarks SET comments = NULL WHERE id = NEW.id
 END;
 '''
 
@@ -126,7 +126,7 @@ TRIGGER_REMINDER_INSERT = '''
 CREATE TRIGGER insert_reminders_iduser AFTER INSERT ON reminders
 WHEN (NEW.userid is NULL)
 BEGIN
-  UPDATE reminders SET userid = (SELECT senders.id FROM senders WHERE id_user = '418486546') WHERE id = NEW.id;
+  UPDATE reminders SET userid = (SELECT senders.id FROM senders WHERE id_user = '418486546') WHERE id = NEW.id
 END;
 '''
 
