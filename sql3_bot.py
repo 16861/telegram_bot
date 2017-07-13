@@ -7,11 +7,12 @@ class BotDB():
         self.initDB()
     def initDB(self):
         if os.path.exists(self.DBNAME):
-            return
+            return 
         with sqlite3.connect(self.DBNAME) as conn:
             for script in db_scripts.ALL_SCRIPTS:
                 conn.execute(script)
-            conn.commit()
+                conn.commit()
+        # return True
 
     def execute_script(self, script):
         return_values = []
