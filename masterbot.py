@@ -12,6 +12,7 @@ class MasterTelegramBot():
         self.slavebot = sb.Popen("python3 server.py --restart &", shell=True, stdout=sb.PIPE)
 
         self.SendMessage("Hello )")
+        time.sleep(2)
     def _getUrl(self, command=None):
         '''
         get url for sending to telegram server
