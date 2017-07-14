@@ -42,13 +42,13 @@ class Bookmark():
         return query
 
     #delete bookmark
-    def deleteBookmarkQuery(self, id):
-        query = "DELETE FROM bookmarks WHERE id = {0}".format(id)
+    def deleteBookmarkQuery(self, id, iduser):
+        query = "DELETE FROM bookmarks WHERE id = {0} AND iduser={1}".format(id, iduser)
         return query
 
     #others
-    def checkIdQuery(self, id):
-        query = "SELECT id FROM bookmarks WHERE id={0}".format(id)
+    def checkIdQuery(self, id, iduser):
+        query = "SELECT id FROM bookmarks WHERE id={0} AND iduser={1}".format(id, iduser)
         return query
 
     #Tags section

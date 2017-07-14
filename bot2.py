@@ -56,16 +56,20 @@ class TelegramBot():
             return base64.b64encode(bytes(string, "utf-8")).decode("utf-8")
         else:
             return base64.b64decode(string).decode("utf-8")
-    def _getUrl(self, command=None):
+    def _getUrl(self, command=None, iduser=None):
         '''
         get url for sending to telegram server
         '''
         if not command:
             return BASE_URL + self.config['token']
         if command == "send message":
+            if not iduser:
+                chat_id = self.config['chat_id']
+            else:
+                chat_id = iduser
             return  BASE_URL + \
               self.config['token'] + \
-              "/sendMessage?chat_id={0}&text=".format(self.config['chat_id'])
+              "/sendMessage?chat_id={0}&text=".format(chat_id)
         elif command == "get updates":
             return BASE_URL + \
               self.config['token'] + \
@@ -82,13 +86,13 @@ class TelegramBot():
             resp = requests.post(url, headers=headers, data=data)
             return resp
 
-    def SendMessage(self, message):
+    def SendMessage(self, message, iduser=None):
         '''
         send message to chat
         '''
         message = message.replace("#", "_SHARP")
         message = message.replace("&", "_AMP")
-        url = self._getUrl("send message")
+        url = self._getUrl("send message", iduser)
         resp = self._sendCommand("GET", url+message)
         if resp.status_code == 200:
             print("OK, message is send")
@@ -108,8 +112,6 @@ class TelegramBot():
                 self.SendMessage("Can't edit task, please specify parameters")
                 self.ACTION_EDIT_TASK_ID = None
             return None, None
-        if mes == "hello bot":
-            return self.TYPE_SAY_HELLO, None
         data = {}
 
         #when action is not edn aand expectict further data from user
@@ -145,7 +147,7 @@ class TelegramBot():
             if mes[1] == "bookmark":
                 if "https://" in  mes[2] or "https://" in mes[2]:
                     b64bookmark = self._b64decenc(mes[2])
-                    self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark))
+                    self.db.execute_script(self.bookmark.createBookmarkQuery(b64bookmark, iduser=iduser))
                     return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
                 return self.TYPE_BOOKMARKS, {"infos": "Wrong syntax! Can't add bookmark!"}
             if mes[1] == "reminder":
@@ -166,7 +168,7 @@ class TelegramBot():
                 if len(name) < 1 or len(time_to_remind) < 5:
                     return self.TYPE_REMINDERS, {"infos": "wrong syntax"}
                 b64name = self._b64decenc(name)
-                self.db.execute_script(self.reminder.createReminderQuery(b64name, time_to_remind, count))
+                self.db.execute_script(self.reminder.createReminderQuery(b64name, time_to_remind, count, iduser))
                 return self.TYPE_REMINDERS, {"infos": "Reminder is added!"}
         # show tasks either all or determined amount
         elif mes[0] == "show":
@@ -180,9 +182,9 @@ class TelegramBot():
                 return self.TYPE_SHOW_TASKS, {'tasks': res}
             if mes[1] == "bookmarks":
                 if len(mes) == 3 and mes[2].isdigit():
-                    db_res = self.db.execute_script(self.bookmark.getBookmarks(mes[2]))
+                    db_res = self.db.execute_script(self.bookmark.getBookmarks(count=mes[2], iduser=iduser))
                 else:
-                    db_res = self.db.execute_script(self.bookmark.getBookmarks())
+                    db_res = self.db.execute_script(self.bookmark.getBookmarks(iduser=iduser))
                 if len(db_res) == 0:
                     return self.TYPE_BOOKMARKS, {'infos': "There are no bookmarks!"}
                 send_mes = ""
@@ -200,7 +202,7 @@ class TelegramBot():
                     send_mes += "URL: {0}\n".format(self._b64decenc(bookmark[0], encode=False))
                 return self.TYPE_BOOKMARKS, {'infos': send_mes}
             if mes[1] == "reminders":
-                reminders = self.db.execute_script(self.reminder.getRemindersQuery())
+                reminders = self.db.execute_script(self.reminder.getRemindersQuery(iduser))
                 
                 message_to_send = ''
                 # if len(reminders) < 1:
@@ -233,8 +235,8 @@ class TelegramBot():
             if mes[1] == "bookmark" and mes[2] == "with" and mes[3] == "id":
                 if not mes[4].isdigit():
                     data['infos'] = "Wrong input"
-                elif len(self.db.execute_script(self.bookmark.checkIdQuery(mes[4]))) > 0:
-                    self.db.execute_script(self.bookmark.deleteBookmarkQuery(mes[4]))
+                elif len(self.db.execute_script(self.bookmark.checkIdQuery(mes[4], iduser))) > 0:
+                    self.db.execute_script(self.bookmark.deleteBookmarkQuery(mes[4], iduser))
                     data['infos'] = "Deleted bookmark with id: {0}".format(mes[4])
                 else:
                     data['infos'] = "There are no such bookmark with id: {0}".format(mes[4])
@@ -242,7 +244,7 @@ class TelegramBot():
             if mes[1] == "reminder" and mes[2] == "with" and mes[3] == "id":
                 if not mes[4].isdigit():
                     return self.TYPE_ERROR, None
-                [check_query, delete_query] = self.reminder.deleteReminderQuery(mes[4])
+                [check_query, delete_query] = self.reminder.deleteReminderQuery(mes[4], iduser)
                 if self.db.execute_script(check_query):
                     self.db.execute_script(delete_query)
                     message_to_send = "Reminder succesfully deleted!"
@@ -288,15 +290,13 @@ class TelegramBot():
                 b64link = self._b64decenc(record["link"])
                 b64description = self._b64decenc(record["title"])
                 b64comments = self._b64decenc(record["desc"])
-                self.db.execute_script(self.bookmark.createBookmarkQuery(b64link, description=b64description, comments=b64comments))
+                self.db.execute_script(self.bookmark.createBookmarkQuery(b64link, description=b64description, comments=b64comments, iduser=iduser))
                 return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
                 return self.TYPE_ERROR, None
-            if mes[1] == "update":
-                return self.TYPE_UPDATE_BOT, None
-            elif mes[1] == "restart":
-                return self.TYPE_RESTART_BOT, None
+            if mes[1] == "hello":
+                return self.TYPE_SAY_HELLO, {"infos": "hello I'm bot :)"}
             elif mes[1] == "exit":
                 return self.TYPE_EXIT, None
         return None, None
@@ -334,16 +334,17 @@ class TelegramBot():
         current_time = time.strftime("%H:%M")
         for r in reminders:
             if current_time == r[2]:
-                self.SendMessage("Remind: {0} Get up and do your work!".format(r[1]))
+                # iduser = int(r[4])
+                self.SendMessage("Remind: {0} Get up and do your work!".format(r[1]), r[4])
                 cnt = int(r[3])
                 if cnt != -1:
                     cnt -=  1
                     print("cnt: ", cnt)
                     if cnt > 0:
-                        print(self.reminder.updateReminderQuery('counter', r[0], cnt))
-                        self.db.execute_script(self.reminder.updateReminderQuery('counter', r[0], cnt))
+                        print(self.reminder.updateReminderQuery('counter', r[0], cnt, r[4]))
+                        self.db.execute_script(self.reminder.updateReminderQuery('counter', r[0], cnt, r[4]))
                     else:
-                        _, delete_query = self.reminder.deleteReminderQuery(str(r[0]))
+                        _, delete_query = self.reminder.deleteReminderQuery(str(r[0]), r[4])
                         self.db.execute_script(delete_query)
     def GetUpdates(self):
         '''
@@ -364,17 +365,18 @@ class TelegramBot():
             #no new messages
             return running_bot
 
-        #process incoming message        print("Trye")
-        user_id = int(self.getValidUserId())
+        #process incoming message
+        valid_user_id = int(self.getValidUserId())
         #there ara two types of message: "message" and "edited_message"
         type_of_message = ""
         for res in js_data['result']:
             for key in res.keys():
                 if key != "update_id":
                     type_of_message = key
-            if user_id != res[type_of_message]["from"]["id"]:
+            sender_id = int(self.getSenderIdByTelegramId(res[type_of_message]["from"]["id"]))
+            if valid_user_id != res[type_of_message]["from"]["id"]:
                 continue
-            action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower(), res[type_of_message]["from"]["id"])
+            action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower(), sender_id)
             if action_type == self.TYPE_NEW_TASK:
                 #write message into db
                 sender_id = self.getSenderIdByTelegramId(res[type_of_message]['from']['id'])
@@ -408,7 +410,7 @@ class TelegramBot():
                 self.SendMessage("Wrong command. I don'n now what to do!")
             elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR \
               or action_type == self.TYPE_REMINDERS or action_type == self.TYPE_SET_TASK_DONE \
-              or action_type == self.TYPE_DELETE_TASK :
+              or action_type == self.TYPE_DELETE_TASK or action_type == self.TYPE_SAY_HELLO :
                 self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
         with open(CONFIG_NAME, 'w') as fd:

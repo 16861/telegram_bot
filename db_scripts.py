@@ -84,7 +84,7 @@ CREATE TABLE `reminders` (
 	`name`	TEXT NOT NULL,
 	`time_`	TEXT NOT NULL,
 	`count_`	INTEGER NOT NULL DEFAULT -1,
-	`iduser` INTEGER DEFAULT 1
+	`iduser` INTEGER DEFAULT 1,
 	PRIMARY KEY(id)
 );
 '''
