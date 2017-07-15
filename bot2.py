@@ -205,18 +205,19 @@ class TelegramBot():
                 reminders = self.db.execute_script(self.reminder.getRemindersQuery(iduser))
                 
                 message_to_send = ''
-                # if len(reminders) < 1:
+                if len(reminders) < 1:
+                    message_to_send = "No reminders found!"
+                else:
+                    for r in reminders:
+                        message_to_send += "Reminder name: {0}, alert time: {1}".format(self._b64decenc(r[1], encode=False), r[2])
+                        if r[3] == -1:
+                            message_to_send += " frequency: everyday"
+                        else:
+                            message_to_send += " freqency: {0}".format(r[3])
                     
-                for r in reminders:
-                    message_to_send += "Reminder name: {0}, alert time: {1}".format(self._b64decenc(r[1], encode=False), r[2])
-                    if r[3] == -1:
-                        message_to_send += " frequency: everyday"
-                    else:
-                        message_to_send += " freqency: {0}".format(r[3])
-                
-                    if len(mes) > 2 and mes[2] == 'full':
-                        message_to_send += ', id: {0}'.format(r[0])
-                    message_to_send += "\n"
+                        if len(mes) > 2 and mes[2] == 'full':
+                            message_to_send += ', id: {0}'.format(r[0])
+                        message_to_send += "\n"
                 return self.TYPE_REMINDERS, {"infos": message_to_send}
         #delete task
         elif mes[0] == "delete":
@@ -335,11 +336,11 @@ class TelegramBot():
         for r in reminders:
             if current_time == r[2]:
                 # iduser = int(r[4])
-                self.SendMessage("Remind: {0} Get up and do your work!".format(r[1]), r[4])
+                chat_id = self.getSenderIdByTelegramId(r[4])
+                self.SendMessage("Remind: '{0}'\n Get up and do your work!".format(self._b64decenc(r[1], encode=False)), chat_id)
                 cnt = int(r[3])
                 if cnt != -1:
                     cnt -=  1
-                    print("cnt: ", cnt)
                     if cnt > 0:
                         print(self.reminder.updateReminderQuery('counter', r[0], cnt, r[4]))
                         self.db.execute_script(self.reminder.updateReminderQuery('counter', r[0], cnt, r[4]))
@@ -434,7 +435,7 @@ class TelegramBot():
             for task in self.db.execute_script(self.task.getTaskForPeriodQuery(current_data, to_date)):
                 messege_to_chat += task[1] + ", id: " + str(task[0]) + \
                   ", expires " + task[2] + "\n"
-            self.SendMessage(messege_to_chat) 
+            self.SendMessage(messege_to_chat, ) 
 
     # tech function
     def getValidUserId(self):
