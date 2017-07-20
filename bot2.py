@@ -24,6 +24,7 @@ class TelegramBot():
 
 
         self.ACTION_EDIT_TASK_ID = None
+        self.ACTION_EDIT_BOOKMARK_ID = None
 
         self.TYPE_ERROR = 0
         self.TYPE_NEW_TASK = 10
@@ -117,7 +118,7 @@ class TelegramBot():
         #when action is not edn aand expectict further data from user
         if self.ACTION_EDIT_TASK_ID:
             if len(mes) < 2:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[0] == "text":
                 new_text = re.search("\"(.+)\"", message).group(1)
                 self.db.execute_script(self.task.updeteTaskQuery(self.ACTION_EDIT_TASK_ID, new_text, 'text'))
@@ -130,13 +131,23 @@ class TelegramBot():
                 self.db.execute_script(self.task.updeteTaskQuery(self.ACTION_EDIT_TASK_ID, new_date, 'date'))
                 self.ACTION_EDIT_TASK_ID = None
             return self.TYPE_TASK_CHANGED, None
+        elif self.ACTION_EDIT_BOOKMARK_ID:
+            bookmark_id = self.ACTION_EDIT_BOOKMARK_ID
+            self.ACTION_EDIT_BOOKMARK_ID = None
+            if len(mes) < 2:
+                return self.TYPE_ERROR, {"infos": "Your messge is too short. Try again."}
+            if mes[0] == "description":
+                new_desc = re.search("[\"|'](.+)[\"|']", message).group(1)
+                self.db.execute_script(self.bookmark.updateBookmarkQuery(bookmark_id, self._b64decenc(new_desc), "description"))
+                return self.TYPE_BOOKMARKS, {"infos": "Bookmark is updated!"}
+            return self.TYPE_ERROR, {"infos": "Wrong syntax!"}
 
         #main loop, check entered commands
         #there is next command: add, show, delete, set, exit,
         # bot(block of command for manage bot), edit, help(in plans:) )
         if mes[0] == "add":
             if len(mes) < 2:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "task":
                 new_task = re.search("[\"'](.+)[\"']", message).group(1)
                 expire_date = re.search("\d{2}.\d{2}.\d{2,4}", message).group(0)
@@ -157,7 +168,7 @@ class TelegramBot():
                 found_time = re.search("\d{2}:\d{2}", message)
                 found_count = re.search("[0-9]+\stimes?$|everyday$", message)
                 if not found_text or not found_count or not found_time:
-                    return self.TYPE_ERROR, None
+                    return self.TYPE_ERROR, {"infos": "Wrong command syntax!"}
                 name = found_text.group(1)
                 time_to_remind = found_time.group(0)
                 temp_count = found_count.group(0)
@@ -173,7 +184,7 @@ class TelegramBot():
         # show tasks either all or determined amount
         elif mes[0] == "show":
             if len(mes) < 2:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "tasks":
                 if len(mes) == 3 and mes[2].isdigit():
                     res = self.db.execute_script(self.task.getTasksQuery(mes[2]))
@@ -222,7 +233,7 @@ class TelegramBot():
         #delete task
         elif mes[0] == "delete":
             if len(mes) < 4:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "task" and mes[2] == "with" and mes[3] == "id":
                 task_id = mes[4]
                 
@@ -244,7 +255,7 @@ class TelegramBot():
                 return self.TYPE_BOOKMARKS, data
             if mes[1] == "reminder" and mes[2] == "with" and mes[3] == "id":
                 if not mes[4].isdigit():
-                    return self.TYPE_ERROR, None
+                    return self.TYPE_ERROR, {"infos": "Wrong id format!"}
                 [check_query, delete_query] = self.reminder.deleteReminderQuery(mes[4], iduser)
                 if self.db.execute_script(check_query):
                     self.db.execute_script(delete_query)
@@ -254,7 +265,7 @@ class TelegramBot():
                 return self.TYPE_REMINDERS, {"infos": message_to_send}
         elif mes[0] == "update":
             if len(mes) < 4:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "task" and mes[2] == "with" and mes[3] == "id":
                 if mes[4] == "set" and mes[5] == 'done':
                     data = {}
@@ -263,20 +274,32 @@ class TelegramBot():
                     else:
                         data['infos'] = "Can't find task with id {0}".format(mes[2])
                     return self.TYPE_SET_TASK_DONE, data
-                if mes[4].isdigit:
+                if mes[4].isdigit():
                     if self.db.execute_script(self.task.checkTaskIdQuery(mes[4])):
                         self.ACTION_EDIT_TASK_ID = mes[4]
                         return self.TYPE_EDIT_TASK, None
                     else:
                         self.SendMessage("No such task found!")
+            elif mes[1] == "bookmark" and mes[2] == "with" and mes[3] == "id":
+                if mes[4].isdigit():
+                    ids = self.db.execute_script(self.bookmark.checkIdQuery(int(mes[4]), iduser))
+                    if len(ids) >= 1:
+                        self.ACTION_EDIT_BOOKMARK_ID = mes[4]
+                        return self.TYPE_BOOKMARKS, {"infos": "Now edit choosen bookmark, example: description \"new description\" "}
+                else:
+                    return self.TYPE_ERROR, {"infos": "Need correct bookmark id!"}
+            return self.TYPE_ERROR, {"infos": "Wrong syntax!"}
+                        
+                        
+                    
         elif mes[0] == "habr":
             if len(mes) < 2:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "show":
                 return self.TYPE_HABR, {'infos': self.getHabrNewses()}
             elif mes[1] == "link":
                 if len(mes) < 3:
-                    return self.TYPE_ERROR, None
+                    return self.TYPE_ERROR, {"infos": "Command is too short!"}
                 if self.habr_newses and int(mes[2]) in [news['index'] for news in self.habr_newses]:
                     record = [news for news in self.habr_newses if news['index'] == int(mes[2])][0]
                     data = {"infos": "Description: {0}\nhabr Link: {1}".format(record["desc"], record["link"])} 
@@ -295,7 +318,7 @@ class TelegramBot():
                 return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
-                return self.TYPE_ERROR, None
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
             if mes[1] == "hello":
                 return self.TYPE_SAY_HELLO, {"infos": "hello I'm bot :)"}
             elif mes[1] == "exit":
@@ -353,8 +376,6 @@ class TelegramBot():
         '''
         #get messages from Telegram API
         running_bot = True
-        with open(CONFIG_NAME, 'r') as fd:
-            self.config = json.loads(fd.read())
         url = self._getUrl("get updates")
         data = self._sendCommand("GET", url)
         if data.status_code != 200:
@@ -407,20 +428,16 @@ class TelegramBot():
                 self.SendMessage("Enter new text or expire date(exaple text 'new text'):")
             elif action_type == self.TYPE_TASK_CHANGED:
                 self.SendMessage("Successfully change task! Enter 'show tasks' to see other tasks :)")
-            elif action_type == self.TYPE_ERROR:
-                self.SendMessage("Wrong command. I don'n now what to do!")
             elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR \
               or action_type == self.TYPE_REMINDERS or action_type == self.TYPE_SET_TASK_DONE \
-              or action_type == self.TYPE_DELETE_TASK or action_type == self.TYPE_SAY_HELLO :
+              or action_type == self.TYPE_DELETE_TASK or action_type == self.TYPE_SAY_HELLO or action_type == self.TYPE_ERROR :
                 self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
-        with open(CONFIG_NAME, 'w') as fd:
-            if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
+        if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
+            with open(CONFIG_NAME, 'w') as fd:
                 self.config['last_updates'] = \
                  max([mes["update_id"] for mes in js_data["result"]])+1
-            self.config['last_updates'] = \
-              max([mes["update_id"] for mes in js_data["result"]])+1
-            fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
+                fd.write(str(self.config).replace("'", "\"").replace("False","false").replace("True","true"))
         return running_bot
     def Remind(self):
         '''

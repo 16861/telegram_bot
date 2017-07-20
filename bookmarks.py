@@ -30,11 +30,11 @@ class Bookmark():
         return query
 
     #update bookmark
-    def updateBookmarkQuery(self, id, new_data, type='url'):
+    def updateBookmarkQuery(self, id, new_data, type='description'):
         if type == "url":
-            query = "UPDATE bookmarks SET url = {0} WHERE id = {1}".format(new_data, id)
+            query = "UPDATE bookmarks SET url = '{0}' WHERE id = {1}".format(new_data, id)
         elif type == "description":
-            query = "UPDATE bookmarks SET description = {0} WHERE id = {1}".format(new_data, id)
+            query = "UPDATE bookmarks SET description = '{0}' WHERE id = {1}".format(new_data, id)
         elif type == "rate":
             query = "UPDATE bookmarks SET rate = {0} WHERE id = {1}".format(new_data, id)
         else:
