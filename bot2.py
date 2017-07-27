@@ -7,6 +7,7 @@ import logger, botcalendar, sql3_bot, tasks, bookmarks, reminder
 CONFIG_NAME = "bot.conf"
 BASE_URL = "http://api.telegram.org/bot"
 HABRAHABR_MAIN = "https://habrahabr.ru/"
+DOU_RECENT_NEWS = "https://dou.ua/lenta/"
 
 class TelegramBot():
     def __init__(self):
@@ -20,6 +21,7 @@ class TelegramBot():
         self.bookmark = bookmarks.Bookmark()
         self.reminder= reminder.Reminder()
         self.habr_newses = {}
+        self.dou_newses = []
         self.one_minute_remind = time.strftime("%H:%M")
 
 
@@ -41,6 +43,7 @@ class TelegramBot():
         self.TYPE_HABR = 120
         self.TYPE_BOOKMARKS = 130
         self.TYPE_REMINDERS = 140
+        self.TYPE_DOU = 150
 
         self.RestartBotFlag = False
         self.UpdateBotFlag = False
@@ -288,7 +291,7 @@ class TelegramBot():
                         return self.TYPE_BOOKMARKS, {"infos": "Now edit choosen bookmark, example: description \"new description\" "}
                 else:
                     return self.TYPE_ERROR, {"infos": "Need correct bookmark id!"}
-            return self.TYPE_ERROR, {"infos": "Wrong syntax!"}
+            return self.TYPE_ERROre.findall("<a.+?href=\"(https://habrahabr.ru/[a-zA-Z/]+/[0-9]+?/)\">(.*?)</a>", str(link)), {"infos": "Wrong syntax!"}
                         
                         
                     
@@ -316,6 +319,34 @@ class TelegramBot():
                 b64comments = self._b64decenc(record["desc"])
                 self.db.execute_script(self.bookmark.createBookmarkQuery(b64link, description=b64description, comments=b64comments, iduser=iduser))
                 return self.TYPE_BOOKMARKS, {"infos": "Bookmark is added!"}
+        elif mes[0] == "dou":
+            if len(mes) < 2:
+                return self.TYPE_ERROR, {"infos": "Command is too short!"}
+            if mes[1] == "show":
+                print(True)
+                return self.TYPE_DOU, {"infos": self.getDouNews()}
+            elif mes[1] == "link":
+                if len(mes) < 3:
+                    return self.TYPE_ERROR, {"infos": "Command is too short!"}
+                if self.dou_newses and int(mes[2]) in [news["index"] for news in self.dou_newses]:
+                    record = [news for news in self.dou_newses if news["index"] == int(mes[2]) ][0]
+                    data = {"infos": "Title: {0}\nDou link: {1}".format(record["title"], record["link"])}
+                else:
+                    data = {"infos": "No news found!"}
+                return self.TYPE_DOU, data
+            elif mes[1] == "remember":
+                if not self.habr_newses:
+                    self.getDouNews()
+                record = [news for news in self.dou_newses if news['index'] == int(mes[2])]
+                if not record:
+                    return self.TYPE_ERROR, {"infos": "News not found"}
+                else:
+                    record = record[0]
+                b64link = self._b64decenc(record["link"])
+                b64description = self._b64decenc(record["title"])
+                #b64comments = self._b64decenc(record["desc"])
+                self.db.execute_script(self.bookmark.createBookmarkQuery(b64link, description=b64description, iduser=iduser))
+                return self.TYPE_DOU, {"infos": "Bookmark added!"}
         elif mes[0] == "bot":
             if len(mes) < 2:
                 return self.TYPE_ERROR, {"infos": "Command is too short!"}
@@ -335,7 +366,6 @@ class TelegramBot():
         links = soup.find_all("a", {"class", "post__title_link"})
         divs = soup.find_all("div", {"class", "html_format"})
         tags = re.compile("<.*?>")
-        # blanks = re.compile("^\n$")
         indx = 1
         if len(links) != len(divs):
             return self.TYPE_ERROR, None
@@ -350,6 +380,25 @@ class TelegramBot():
         for news in self.habr_newses:
             infos += str(news["index"]) + ". " + news['title'] + "\n"
         return infos
+    def getDouNews(self):
+        '''
+        get dou newses
+        '''
+        self.dou_newses = []
+        headers = {"User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:50.0) Gecko/20100101 Firefox/50.0"}
+        site = requests.get(DOU_RECENT_NEWS, headers=headers)
+        soup = BS(site.text, 'lxml')
+        newses = soup.find_all("h2", {"class", "title"})
+        times = soup.find_all("time", {"class": "date"})
+        mes_to_send = ""
+        tags = re.compile("<.*?>")
+        for i in enumerate(newses):
+            tpl = re.findall("<a\s+href=\"(https://dou.ua/lenta/articles/[a-z0-9|-]+/)\">(.+?)<", str(i[1]), flags=re.DOTALL)       
+            if tpl and len(tpl[0]) > 1:
+                time_ = tags.sub("", str(times[i[0]]))
+                self.dou_newses.append({"index": i[0]+1, "link": tpl[0][0], "title": tpl[0][1].strip("\t").strip("\n") + "    " + time_})
+                mes_to_send += str(i[0]+1) + ". " + tpl[0][1].strip("\t").strip("\n") + "    " + time_ +  "\n"
+        return mes_to_send
     def CheckReminders(self):
         if self.one_minute_remind == time.strftime("%H:%M"):
             return
@@ -392,11 +441,12 @@ class TelegramBot():
         #there ara two types of message: "message" and "edited_message"
         type_of_message = ""
         for res in js_data['result']:
+            
             for key in res.keys():
                 if key != "update_id":
                     type_of_message = key
             sender_id = int(self.getSenderIdByTelegramId(res[type_of_message]["from"]["id"]))
-            if valid_user_id != res[type_of_message]["from"]["id"]:
+            if valid_user_id != res[type_of_message]["from"]["id"] or "text" not in res[type_of_message].keys():
                 continue
             action_type, data = self.parseSenderMessage(res[type_of_message]['text'].lower(), sender_id)
             if action_type == self.TYPE_NEW_TASK:
@@ -428,9 +478,10 @@ class TelegramBot():
                 self.SendMessage("Enter new text or expire date(exaple text 'new text'):")
             elif action_type == self.TYPE_TASK_CHANGED:
                 self.SendMessage("Successfully change task! Enter 'show tasks' to see other tasks :)")
-            elif action_type == self.TYPE_BOOKMARKS or action_type == self.TYPE_HABR \
-              or action_type == self.TYPE_REMINDERS or action_type == self.TYPE_SET_TASK_DONE \
-              or action_type == self.TYPE_DELETE_TASK or action_type == self.TYPE_SAY_HELLO or action_type == self.TYPE_ERROR :
+            elif action_type in(self.TYPE_BOOKMARKS,self.TYPE_HABR, \
+              self.TYPE_REMINDERS, self.TYPE_SET_TASK_DONE, \
+              self.TYPE_DELETE_TASK, self.TYPE_SAY_HELLO, self.TYPE_ERROR,  \
+              self.TYPE_DOU) :
                 self.SendMessage(data['infos'])
         # writing new config into file with incremented and updated update_id
         if self.config['last_updates'] <= max([mes["update_id"] for mes in js_data["result"]]):
